@@ -1,8 +1,11 @@
 #!/usr/bin/env python
 
-#: ROS Node - Action Server - IoT ROS Bridge
+# ROS Node - Action Server - IoT ROS Bridge
 
-'''Python Modules required for ROS client,Action Server,Threading
+'''
+**ROS Node - Action Server - IoT ROS Bridge**
+
+Python Modules required for ROS client,Action Server,Threading
 ::
 
     import rospy
@@ -73,7 +76,7 @@ from ast import literal_eval
 
 class RosIotBridgeActionServer:
     '''
-    This Class links ROS IoT and Action Server
+    This Class links ROS IoT and Action Server.
 
     Constructor
 
@@ -192,7 +195,7 @@ class RosIotBridgeActionServer:
     # This is a callback function for MQTT Subscriptions
     def mqtt_sub_callback(self, client, userdata, message):
         '''
-        This is a callback function for MQTT Subscriptions
+        This is a callback function for MQTT Subscriptions           
 
         Storing the Recieved Message in variable Payload
         ::
@@ -279,9 +282,48 @@ class RosIotBridgeActionServer:
     def process_goal(self, goal_handle):
         '''
         This function is called is a separate thread to process Goal.
-        '''
 
-        flag_success = False
+        Storing the result message from the message class `` msgRosIotResult`` in variable result
+        ::
+
+            result = msgRosIotResult()
+
+        Extract the goal message from ``goal_handle`` and assign to the variable ``msg``
+        ::
+
+            goal_id = goal_handle.get_goal_id()
+        
+
+            goal = goal_handle.get_goal()
+            msg = goal.message.decode("utf-8")
+            msg = literal_eval(msg)
+
+        Call the ``update_sheet`` function to update the respective sheets
+        ::
+
+            ret = self.update_sheet(msg)
+
+        Using the ``ret`` (Return message) update the flag success in ``result``
+
+            if ret == "1":
+                rospy.loginfo("UpdateSheet Thread Started")
+                result.flag_success = True
+            else:
+                rospy.logerr("Failed to start UpdateSheet Thread")
+                result.flag_success = False
+
+            rospy.loginfo("Send goal result to client")
+            print("ret : ", ret)
+            if result.flag_success == True:
+                rospy.loginfo("Succeeded")
+                goal_handle.set_succeeded(result)
+            else:
+                rospy.loginfo("Goal Failed. Aborting.")
+                goal_handle.set_aborted(result)
+      
+
+
+        '''
         result = msgRosIotResult()
 
         goal_id = goal_handle.get_goal_id()
@@ -323,9 +365,24 @@ class RosIotBridgeActionServer:
         '''
         This function Updates the Message received from other ROS nodes through Action Server to the Respective Sheet ID of IMS
 
-        :param msg: A dictionary containing parameters
-        :type msg: Dictionary
-        :return: "1"
+        :Param msg: A dictionary containing parameters
+        :Type msg: Dictionary
+        :return: if success "1"
+
+        Webapp URL 
+        ::
+
+            URL1 = "https://script.google.com/macros/s/AKfycbyvZvFADAkusgdLFqvQAuKMT5GweDrY06mp0AtUi70Mamr2ESM/exec"
+
+        Response message
+        ::
+
+            response1 = requests.get(URL1, params=msg)
+
+        Return
+        ::
+
+            return response1.content
         '''
         URL1 = "https://script.google.com/macros/s/AKfycbyvZvFADAkusgdLFqvQAuKMT5GweDrY06mp0AtUi70Mamr2ESM/exec"
         response1 = requests.get(URL1, params=msg)
@@ -335,6 +392,49 @@ class RosIotBridgeActionServer:
     def IncomingOrders(self, payload):
         '''
         This function Updates the Incoming order spreadsheet with the given parameters
+
+        Converting string to dictionary
+        ::
+            payload = literal_eval(payload)
+
+        Assigning priority & cost based on ``item``
+        ::
+
+            item = payload["item"]
+
+            if item == "Medicine":
+                priority = "HP"
+                cost = "1000"
+
+            elif item == "Food":
+                priority = "MP"
+                cost = "500"
+
+            elif item == "Clothes":
+                priority = "LP"
+                cost = "100"
+
+        Updating Inventory sheet with ``parameters``
+        ::
+            parameters = {
+                "id": "IncomingOrders",
+                "Team Id": "VB#1516",
+                "Unique Id": "aYzqLq",
+                "Order Id": payload["order_id"],
+                "Order Date and Time": payload["order_time"],
+                "Order Id": payload["order_id"],
+                "Item": item,
+                "Priority": priority,
+                "Cost": cost,
+                "Order Quantity": payload["qty"],
+                "City": payload["city"],
+                "Longitude": payload["lon"],
+                "Latitude": payload["lat"],
+            }
+
+            self.update_sheet(parameters)
+  
+
         '''
         payload = literal_eval(payload)
         item = payload["item"]
@@ -372,6 +472,23 @@ class RosIotBridgeActionServer:
 
 
 def main():
+    '''
+    Initialize the node
+    ::
+
+        rospy.init_node("node_ros_iot_bridge_action_server")
+
+    Creating class object
+    ::
+        
+        ros_iot_bridge = RosIotBridgeActionServer()
+
+    Run the node until interrupt ``ctrl + c``
+    ::
+
+        rospy.spin()
+
+    '''
     rospy.init_node("node_ros_iot_bridge_action_server")
 
     ros_iot_bridge = RosIotBridgeActionServer()
